@@ -1,12 +1,8 @@
-from datetime import datetime
-from pathlib import Path
 import time
 import flet as ft
 
 from components.logView import LogView
 from components.progressBar import ProgressBar
-
-BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 def main(page: ft.Page):

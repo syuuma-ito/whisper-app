@@ -40,7 +40,7 @@ class LogView(ft.ListView):
         self.height = 300
 
     def add_log(self, message: str, level: str = "DEBUG"):
-        """ログメッセージを追加するメソッド
+        """ログメッセージを追加する
         Args:
             message (str): ログメッセージ
             level (str): ログレベル（"DEBUG", "INFO", "WARNING", "ERROR"）
@@ -73,7 +73,7 @@ class LogView(ft.ListView):
             log.debug(message)
 
     def clear_logs(self):
-        """ログをクリアするメソッド"""
+        """ログをクリアする"""
         self.controls.clear()
         self.update()
 

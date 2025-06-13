@@ -5,6 +5,8 @@ ALLOWED_EXTENSIONS = [
     "mp3",
     "wav",
     "m4a",
+    #
+    # TODO: 動画ファイルも対応するように
     # "mp4",
     # "mov",
 ]
@@ -30,7 +32,6 @@ class FilePicker(ft.Container):
         self.file_picker_element = ft.FilePicker(
             on_result=self._on_file_picker_result,
         )
-
         self.label_text_element = ft.Text(
             "選択されていません",
             theme_style=ft.TextThemeStyle.BODY_SMALL,
@@ -57,13 +58,13 @@ class FilePicker(ft.Container):
                 self.label_text_element.value = (
                     f"選択されたファイル: {self.selected_file}"
                 )
-                self.update()
             elif e.path:
                 self.selected_folder = e.path
                 self.label_text_element.value = (
                     f"選択されたフォルダ: {self.selected_folder}"
                 )
-                self.update()
+
+            self.update()
 
     def _on_click(self, e: ft.ControlEvent):
         """ファイル選択ダイアログを開く"""

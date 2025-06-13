@@ -2,7 +2,7 @@ import flet as ft
 
 
 class ProgressBar(ft.Container):
-    """プログレスバー
+    """プログレスバーを表示するコンポーネント
 
     Methods:
         update_value(value: float, label: str = ""): 進捗バーの値を更新
@@ -34,7 +34,7 @@ class ProgressBar(ft.Container):
         )
 
     def update_value(self, value: float, label: str = ""):
-        """進捗バーの値を更新するメソッド
+        """プログレスバーの値を更新する
 
         Args:
             value (float): 新しい進捗値（0.0から1.0の範囲）
