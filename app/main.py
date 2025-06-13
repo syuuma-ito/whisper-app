@@ -20,9 +20,9 @@ def main(page: ft.Page):
 
     #  文字起こしの設定
     transcription_settings = {
-        "model": "medium",
-        "compute_type": "int8",
-        "device": "CPU",
+        "model": "large-v3-turbo",
+        "compute_type": "float16" if can_use_gpu() else "int8",
+        "device": "GPU" if can_use_gpu() else "CPU",
     }
     target_file = None
     output_folder = None

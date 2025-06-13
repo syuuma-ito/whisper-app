@@ -4,7 +4,23 @@ version = "0.1.0"
 description = ""
 readme = "README.md"
 requires-python = ">=3.13"
-dependencies = ["faster-whisper>=1.1.1", "flet[all]>=0.28.3", "rich>=14.0.0"]
+dependencies = [
+    "faster-whisper>=1.1.1",
+    "flet[all]>=0.28.3",
+    "rich>=14.0.0",
+    "torch==2.7.1",
+    "torchaudio==2.7.1",
+    "torchvision==0.22.1",
+]
 
 [tool.taskipy.tasks]
 start = "python app/main.py"
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cu128" }]
+torchvision = [{ index = "pytorch-cu128" }]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true

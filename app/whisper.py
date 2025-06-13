@@ -77,7 +77,7 @@ def _run_whisper(
         yield {
             "message": f"[{segment.start:.2f} -> {segment.end:.2f}] {segment.text.strip()}",
             "level": "DEBUG",
-            "progress": segment.start / audio_length,
+            "progress": min(segment.start / audio_length, 1.0),
             "label": "文字起こし中...",
         }
         result.append(
