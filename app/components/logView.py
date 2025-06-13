@@ -77,6 +77,18 @@ class LogView(ft.ListView):
         self.controls.clear()
         self.update()
 
+    def info(self, message: str):
+        self.add_log(message, "INFO")
+
+    def warning(self, message: str):
+        self.add_log(message, "WARNING")
+
+    def error(self, message: str):
+        self.add_log(message, "ERROR")
+
+    def debug(self, message: str):
+        self.add_log(message, "DEBUG")
+
 
 if __name__ == "__main__":
     import time
