@@ -23,11 +23,14 @@ python app/main.py
 で実行
 
 ## GPU を使う場合
+NVIDIAのGPUを持っている場合は、CUDAを使うことで高速化できます。
+実行前に、NVIDIAのドライバとCUDAをインストールしておく必要があります。
+
 `uv` で `PyTorch` を使う場合
 
 参考 : https://docs.astral.sh/uv/guides/integration/pytorch/
 
-### 例 ; cuda 12.8 の場合
+### 例 : cuda 12.8 の場合
 pyproject.toml
 ```toml
 [project]
