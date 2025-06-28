@@ -1,4 +1,7 @@
-def can_use_gpu():
+from typing import Optional
+
+
+def can_use_gpu() -> bool:
     """
     PyTorch が GPU を使用できるかどうかを返す
 
@@ -10,4 +13,7 @@ def can_use_gpu():
 
         return torch.cuda.is_available()
     except ImportError:
+        return False
+    except Exception as e:
+        print(f"GPU確認中にエラーが発生しました: {e}")
         return False
