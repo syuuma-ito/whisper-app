@@ -112,14 +112,12 @@ class WhisperTranscriber:
                 "level": "DEBUG",
                 "progress": min(segment.start / audio_length, 1.0),
                 "label": "文字起こし中...",
-            }
-            result.append(
-                {
+                "result": {
                     "start": segment.start,
                     "end": segment.end,
-                    "text": segment.text,
-                }
-            )
+                    "text": segment.text.strip(),
+                },
+            }
 
         return result
 
@@ -175,8 +173,10 @@ class WhisperTranscriber:
 
         result = []
         for update in self._transcribe_audio(input_file_path):
-            result.append(update)
             yield update
+
+            if "result" in update:
+                result.append(update["result"])
 
         output_file_path = (
             output_folder_path / f"{input_file_path.stem}_transcription.txt"
@@ -189,8 +189,7 @@ class WhisperTranscriber:
             "label": "ファイルを保存中...",
         }
 
-        transcription_result = [item for item in result if "start" in item]
-        self._save_transcription(transcription_result, output_file_path)
+        self._save_transcription(result, output_file_path)
 
         yield {
             "message": "文字起こしが完了しました",
