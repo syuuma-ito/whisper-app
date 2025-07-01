@@ -29,7 +29,7 @@ class WhisperApp:
         self.page.title = "文字起こしアプリ"
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.fonts = {
-            "ZenMaruGothic": "./assets/fonts/ZenMaruGothic-Regular.ttf",
+            "ZenMaruGothic": "./app/assets/fonts/ZenMaruGothic-Regular.ttf",
         }
         self.page.theme = ft.Theme(font_family="ZenMaruGothic")
 
