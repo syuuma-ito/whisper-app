@@ -1,10 +1,12 @@
 # whisper-app
-GUIでwhisperが使えるように
+![whisper-app](./docs/screenshot.png)
+
+## これは何？
+文字起こしをローカルで簡単にできるアプリです。
+whisperを使って文字起こし、Fletを使ってGUIを作っています。
 
 ## 使い方
-
 (必要に応じて)uvをインストール
-
 参考 : https://docs.astral.sh/uv/
 
 依存関係をインストール
@@ -18,18 +20,26 @@ uv sync
 python app/main.py
 ```
 
-で実行
+で実行できます。
+
+## 出力形式
+出力形式は、txtファイルで以下のような形式で保存されます。
+
+```
+[0.00s -> 5.00s] Hello, world!
+[5.00s -> 10.00s] This is a test.
+...
+```
 
 ## GPU を使う場合
 NVIDIAのGPUを持っている場合は、CUDAを使うことで高速化できます。
 実行前に、NVIDIAのドライバとCUDAをインストールしておく必要があります。
 
-`uv` で `PyTorch` を使う場合
-
-参考 : https://docs.astral.sh/uv/guides/integration/pytorch/
+(参考) `uv` で `PyTorch` を使う方法 : https://docs.astral.sh/uv/guides/integration/pytorch/
 
 ### 例 : cuda 12.8 の場合
-pyproject.toml
+pyproject.toml に以下のように記述します。
+
 ```toml
 [project]
 name = "whisper-app"

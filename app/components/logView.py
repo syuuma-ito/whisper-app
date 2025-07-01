@@ -1,6 +1,5 @@
 import logging
 from datetime import datetime
-from typing import Any, Dict, Optional
 
 import flet as ft
 from rich.logging import RichHandler

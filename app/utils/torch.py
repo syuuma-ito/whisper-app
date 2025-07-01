@@ -1,6 +1,3 @@
-from typing import Optional
-
-
 def can_use_gpu() -> bool:
     """
     PyTorch が GPU を使用できるかどうかを返す
