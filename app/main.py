@@ -33,12 +33,16 @@ class WhisperApp:
         }
         self.page.theme = ft.Theme(font_family="ZenMaruGothic")
 
+        self.page.window.height = 800
+        self.page.window.width = 1200
+
     def _get_default_settings(self) -> Dict[str, Any]:
         """デフォルトの文字起こし設定を取得する"""
         return {
             "model": "large-v3-turbo",
-            "compute_type": "float16" if can_use_gpu() else "int8",
+            "compute_type": "float16" if can_use_gpu() else "float32",
             "device": "GPU" if can_use_gpu() else "CPU",
+            "language": "auto",
         }
 
     def _setup_components(self) -> None:
@@ -140,7 +144,7 @@ class WhisperApp:
             border=ft.border.all(1, ft.Colors.BLACK38),
             border_radius=10,
             expand=1,
-            height=600,
+            height=650,
         )
 
     def _create_log_panel(self) -> ft.Container:
@@ -157,7 +161,7 @@ class WhisperApp:
                     ),
                     ft.Container(
                         content=self.log_view,
-                        height=460,
+                        height=510,
                         expand=False,
                     ),
                     ft.Container(
@@ -172,7 +176,7 @@ class WhisperApp:
             border=ft.border.all(1, ft.Colors.BLACK38),
             border_radius=10,
             expand=1,
-            height=600,
+            height=650,
         )
 
     def _setup_initial_logs(self) -> None:
@@ -190,7 +194,15 @@ class WhisperApp:
         if disabled is not None:
             self.start_button.disabled = disabled
         else:
-            is_enabled = bool(self.target_file and self.output_folder)
+            basic_conditions = bool(self.target_file and self.output_folder)
+
+            language_valid = True
+            if "language" in self.transcription_settings:
+                language = self.transcription_settings["language"]
+                if language == "":
+                    language_valid = False
+
+            is_enabled = basic_conditions and language_valid
             self.start_button.disabled = not is_enabled
         self.page.update()
 
@@ -230,6 +242,7 @@ class WhisperApp:
         """設定変更時のハンドラー"""
         self.transcription_settings = settings
         self.log_view.add_log(f"設定が変更されました: {settings}", "DEBUG")
+        self._update_start_button_state()
 
     def _run_transcription(self) -> None:
         """文字起こしを実行する"""

@@ -1,6 +1,6 @@
 import logging
 from pathlib import Path
-from typing import Any, Dict, Generator, List
+from typing import Any, Dict, Generator, List, Optional
 
 from faster_whisper import WhisperModel
 
@@ -14,10 +14,13 @@ class TranscriptionError(Exception):
 class WhisperTranscriber:
     """Whisperを使用した文字起こしクラス"""
 
-    def __init__(self, model: str, compute_type: str, device: str):
+    def __init__(
+        self, model: str, compute_type: str, device: str, language: str = "auto"
+    ):
         self.model_name = model
         self.compute_type = compute_type
         self.device = self._normalize_device(device)
+        self.language = self._normalize_language(language)
         self.whisper_model = None
 
     def _normalize_device(self, device: str) -> str:
@@ -29,6 +32,12 @@ class WhisperTranscriber:
             raise ValueError(f"無効なデバイス: {device}")
 
         return normalized_device
+
+    def _normalize_language(self, language: str) -> Optional[str]:
+        """言語設定を正規化する"""
+        if not language or language == "auto":
+            return None  # 自動検出
+        return language.lower().strip()
 
     def _validate_file_path(self, file_path: str) -> Path:
         """ファイルパスを検証する"""
@@ -85,15 +94,17 @@ class WhisperTranscriber:
         try:
             segments, info = self.whisper_model.transcribe(
                 str(input_file_path),
-                beam_size=5,
+                language=self.language,
             )
         except Exception as e:
             raise TranscriptionError(f"文字起こしの実行に失敗しました: {e}")
 
         audio_length = info.duration
 
+        print(info)
+
         yield {
-            "message": f"言語: {info.language} (確率: {info.language_probability:.2f})",
+            "message": f"言語: {info.language}",
             "level": "INFO",
             "progress": 0,
             "label": "文字起こし中...",
@@ -145,8 +156,9 @@ class WhisperTranscriber:
             "label": "文字起こしを開始しています...",
         }
 
+        language_info = f"言語: {self.language if self.language else '自動検出'}"
         yield {
-            "message": f"モデル: {self.model_name}, 精度: {self.compute_type}, デバイス: {self.device}",
+            "message": f"モデル: {self.model_name}, 精度: {self.compute_type}, デバイス: {self.device}, {language_info}",
             "level": "DEBUG",
             "label": "文字起こしを開始しています...",
             "progress": 0.0,
@@ -220,6 +232,7 @@ def transcription(
             model=settings["model"],
             compute_type=settings["compute_type"],
             device=settings["device"],
+            language=settings.get("language", "auto"),
         )
 
         logger.info("文字起こしを開始します。")
