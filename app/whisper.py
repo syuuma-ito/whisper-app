@@ -101,8 +101,6 @@ class WhisperTranscriber:
 
         audio_length = info.duration
 
-        print(info)
-
         yield {
             "message": f"言語: {info.language}",
             "level": "INFO",
