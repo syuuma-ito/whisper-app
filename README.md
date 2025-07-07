@@ -9,18 +9,17 @@ whisperを使って文字起こし、Fletを使ってGUIを作っています。
 (必要に応じて)uvをインストール
 参考 : https://docs.astral.sh/uv/
 
-依存関係をインストール
+(uvとは、Pythonのパッケージ管理ツールで、依存関係の管理や仮想環境の作成を簡単に行うことができます。)
+
+仮想環境を作成、パッケージをインストール
 ```bash
 uv sync
 ```
 
-仮想環境を有効化した後
-
+実行
 ```bash
-python app/main.py
+uv run python app/main.py
 ```
-
-で実行できます。
 
 ## 出力形式
 出力形式は、txtファイルで以下のような形式で保存されます。
@@ -56,9 +55,6 @@ dependencies = [
     "torchvision==0.22.1",
 ]
 
-[tool.taskipy.tasks]
-start = "python app/main.py"
-
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
 torchvision = [{ index = "pytorch-cu128" }]
@@ -67,4 +63,9 @@ torchvision = [{ index = "pytorch-cu128" }]
 name = "pytorch-cu128"
 url = "https://download.pytorch.org/whl/cu128"
 explicit = true
+```
+
+その後、以下のコマンドでパッケージをインストール
+```bash
+uv sync
 ```
