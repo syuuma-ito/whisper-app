@@ -13,9 +13,6 @@ dependencies = [
     # "torchvision==0.22.1",
 ]
 
-[tool.taskipy.tasks]
-start = "python app/main.py"
-
 [tool.uv.sources]
 torch = [{ index = "pytorch-cu128" }]
 torchvision = [{ index = "pytorch-cu128" }]
