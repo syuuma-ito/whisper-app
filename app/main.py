@@ -1,3 +1,6 @@
+import queue
+import threading
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -6,8 +9,17 @@ from components.filePicker import FilePicker
 from components.logView import LogView
 from components.progressBar import ProgressBar
 from components.settings import Settings
+from flet import margin
 from utils.torch import can_use_gpu
 from whisper import transcription
+
+
+class AppStatus(Enum):
+    """アプリケーションのステータス"""
+
+    WAITING = "待機中..."
+    TRANSCRIBING = "文字起こし中..."
+    COMPLETED = "完了"
 
 
 class WhisperApp:
@@ -18,11 +30,21 @@ class WhisperApp:
         self.target_file: Optional[str] = None
         self.output_folder: Optional[str] = None
         self.transcription_settings = self._get_default_settings()
+        self.current_status = AppStatus.WAITING
+
+        # キューとスレッド管理
+        self.message_queue = queue.Queue()
+        self.transcription_thread: Optional[threading.Thread] = None
+        self.queue_checker_thread: Optional[threading.Thread] = None
+        self.should_stop_queue_checker = False
+        self.should_stop_transcription = False
+        self.is_transcribing = False
 
         self._setup_page()
         self._setup_components()
         self._setup_layout()
         self._setup_initial_logs()
+        self._start_queue_checker()
 
     def _setup_page(self) -> None:
         """ページの初期設定を行う"""
@@ -36,6 +58,8 @@ class WhisperApp:
         self.page.window.height = 800
         self.page.window.width = 1200
 
+        self.page.on_window_event = self._on_window_event
+
     def _get_default_settings(self) -> Dict[str, Any]:
         """デフォルトの文字起こし設定を取得する"""
         return {
@@ -48,12 +72,23 @@ class WhisperApp:
     def _setup_components(self) -> None:
         """コンポーネントの初期化と設定を行う"""
         self.log_view = LogView()
-        self.progress_bar = ProgressBar(value=0.0, label="")
+        self.progress_bar = ProgressBar(value=0.0)
+
+        self.status_text = ft.Text(
+            self.current_status.value,
+            color=ft.Colors.GREY_600,
+        )
 
         self.start_button = ft.FilledButton(
             "文字起こし開始",
             disabled=True,
             on_click=lambda _: self._run_transcription(),
+        )
+
+        self.stop_button = ft.FilledButton(
+            "停止する",
+            disabled=True,
+            on_click=lambda _: self._stop_transcription(),
         )
 
         self._setup_file_pickers()
@@ -131,7 +166,8 @@ class WhisperApp:
                         content=ft.Column(
                             [
                                 ft.Row(
-                                    [self.start_button],
+                                    [self.start_button, self.stop_button],
+                                    spacing=10,
                                 ),
                             ]
                         ),
@@ -161,12 +197,17 @@ class WhisperApp:
                     ),
                     ft.Container(
                         content=self.log_view,
-                        height=510,
+                        height=500,
                         expand=False,
                     ),
                     ft.Container(
                         content=self.progress_bar,
-                        height=80,
+                        height=40,
+                    ),
+                    ft.Container(
+                        content=self.status_text,
+                        height=50,
+                        margin=margin.only(left=10),
                     ),
                 ],
                 spacing=0,
@@ -188,6 +229,108 @@ class WhisperApp:
         else:
             self.log_view.add_log("GPUは使用できません", "WARNING")
             self.log_view.add_log("CPUでは処理が遅くなる可能性があります", "WARNING")
+
+    def _start_queue_checker(self) -> None:
+        """キューチェッカーを開始する"""
+        self.should_stop_queue_checker = False
+        self.queue_checker_thread = threading.Thread(
+            target=self._queue_checker_worker, daemon=True
+        )
+        self.queue_checker_thread.start()
+
+    def _queue_checker_worker(self) -> None:
+        """キューからメッセージを取得してUIを更新する"""
+        while not self.should_stop_queue_checker:
+            try:
+                message = self.message_queue.get(timeout=0.1)
+                self._process_queue_message(message)
+                self.message_queue.task_done()
+            except queue.Empty:
+                continue
+            except Exception as e:
+                print(f"キューチェッカーでエラーが発生しました: {e}")
+
+    def _process_queue_message(self, message: Dict[str, Any]) -> None:
+        """キューから受信したメッセージを処理する"""
+        message_type = message.get("type")
+
+        if message_type == "log":
+            self.log_view.add_log(message["text"], message["level"])
+        elif message_type == "progress":
+            self.progress_bar.update_value(message["value"])
+        elif message_type == "error":
+            self.log_view.error(message["text"])
+            self._update_status(AppStatus.WAITING)
+        elif message_type == "status":
+            status_name = message.get("status")
+            if status_name:
+                try:
+                    status = AppStatus(status_name)
+                    self._update_status(status)
+                except ValueError:
+                    print(f"不明なステータス: {status_name}")
+        elif message_type == "transcription_started":
+            self._update_status(AppStatus.TRANSCRIBING)
+        elif message_type == "transcription_stopped":
+            self._update_status(AppStatus.WAITING)
+        elif message_type == "transcription_finished":
+            self._update_status(AppStatus.COMPLETED)
+
+        self.page.update()
+
+    def _update_status(self, status: AppStatus) -> None:
+        """アプリケーションのステータスを更新する"""
+        self.current_status = status
+        self.status_text.value = status.value
+
+        color_map = {
+            AppStatus.WAITING: ft.Colors.GREY_600,
+            AppStatus.TRANSCRIBING: ft.Colors.BLUE_600,
+            AppStatus.COMPLETED: ft.Colors.GREEN_600,
+        }
+        self.status_text.color = color_map.get(status, ft.Colors.GREY_600)
+
+        self._update_button_states()
+
+        self.page.update()
+
+    def _update_button_states(self) -> None:
+        """ステータスに基づいてボタンの状態を更新する"""
+        if self.current_status == AppStatus.WAITING:
+            self._update_start_button_state()
+            self.stop_button.disabled = True
+            self.stop_button.bgcolor = None
+        elif self.current_status == AppStatus.TRANSCRIBING:
+            self.start_button.disabled = True
+            self.stop_button.disabled = False
+            self.stop_button.bgcolor = ft.Colors.RED_300
+        elif self.current_status == AppStatus.COMPLETED:
+            self._update_start_button_state()
+            self.stop_button.disabled = True
+            self.stop_button.bgcolor = None
+
+    def _on_window_event(self, e) -> None:
+        """ウィンドウイベントのハンドラー"""
+        if e.data == "close":
+            self._cleanup()
+
+    def _cleanup(self) -> None:
+        """リソースのクリーンアップ"""
+        if self.is_transcribing:
+            self.should_stop_transcription = True
+
+        self.should_stop_queue_checker = True
+
+        if self.queue_checker_thread and self.queue_checker_thread.is_alive():
+            self.queue_checker_thread.join(timeout=1.0)
+
+        if self.transcription_thread and self.transcription_thread.is_alive():
+            pass
+
+    def _stop_transcription(self) -> None:
+        """文字起こしを停止する"""
+        self.should_stop_transcription = True
+        self.log_view.add_log("文字起こしの停止を要求しました", "INFO")
 
     def _update_start_button_state(self, disabled: Optional[bool] = None) -> None:
         """スタートボタンの有効/無効状態を更新する"""
@@ -257,16 +400,24 @@ class WhisperApp:
             self.log_view.error("ファイルまたはフォルダのパスが無効です")
             return
 
-        self.page.run_thread(
-            lambda: transcription(
+        if self.transcription_thread and self.transcription_thread.is_alive():
+            self.log_view.add_log("既に文字起こしが実行中です", "WARNING")
+            return
+
+        self.should_stop_transcription = False
+        self.progress_bar.reset()
+
+        self.transcription_thread = threading.Thread(
+            target=lambda: transcription(
                 self.transcription_settings,
                 target_file,
                 output_folder,
-                self.log_view,
-                self.progress_bar,
-                self._update_start_button_state,
-            )
+                self.message_queue,
+                lambda: self.should_stop_transcription,
+            ),
+            daemon=True,
         )
+        self.transcription_thread.start()
 
 
 def main(page: ft.Page):

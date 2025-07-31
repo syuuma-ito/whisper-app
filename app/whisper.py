@@ -1,4 +1,5 @@
 import logging
+import queue
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional
 
@@ -84,7 +85,7 @@ class WhisperTranscriber:
         except Exception as e:
             raise TranscriptionError(f"モデルの読み込みに失敗しました: {e}")
 
-    def _transcribe_audio(self, input_file_path: Path):
+    def _transcribe_audio(self, input_file_path: Path, should_stop_callback=None):
         """音声ファイルを文字起こしする"""
         if self.whisper_model is None:
             self._load_model()
@@ -105,22 +106,23 @@ class WhisperTranscriber:
             "message": f"言語: {info.language}",
             "level": "INFO",
             "progress": 0,
-            "label": "文字起こし中...",
         }
         yield {
             "message": f"音声の長さ: {audio_length:.2f}秒",
             "level": "DEBUG",
             "progress": 0,
-            "label": "文字起こし中...",
         }
 
         result = []
         for segment in segments:
+            # 停止チェック
+            if should_stop_callback and should_stop_callback():
+                return result
+
             yield {
                 "message": f"[{segment.start:.2f} -> {segment.end:.2f}] {segment.text.strip()}",
                 "level": "DEBUG",
                 "progress": min(segment.start / audio_length, 1.0),
-                "label": "文字起こし中...",
                 "result": {
                     "start": segment.start,
                     "end": segment.end,
@@ -144,49 +146,61 @@ class WhisperTranscriber:
             raise TranscriptionError(f"ファイルの保存に失敗しました: {e}")
 
     def transcribe(
-        self, input_file: str, output_folder: str
+        self, input_file: str, output_folder: str, should_stop_callback=None
     ) -> Generator[Dict[str, Any], None, None]:
         """文字起こしを実行する"""
         yield {
             "message": "文字起こしを開始します。",
             "level": "INFO",
             "progress": 0.0,
-            "label": "文字起こしを開始しています...",
         }
 
         language_info = f"言語: {self.language if self.language else '自動検出'}"
         yield {
             "message": f"モデル: {self.model_name}, 精度: {self.compute_type}, デバイス: {self.device}, {language_info}",
             "level": "DEBUG",
-            "label": "文字起こしを開始しています...",
             "progress": 0.0,
         }
 
         yield {
             "message": "モデルの読み込み中...(初回は時間がかかる場合があります)",
             "level": "INFO",
-            "label": "文字起こしを開始しています...",
             "progress": 0,
         }
 
         input_file_path = self._validate_file_path(input_file)
         output_folder_path = self._validate_output_folder(output_folder)
 
+        # 停止チェック
+        if should_stop_callback and should_stop_callback():
+            return
+
         self._load_model()
+
+        # 停止チェック
+        if should_stop_callback and should_stop_callback():
+            return
 
         yield {
             "message": "モデルの読み込みが完了しました。",
             "level": "INFO",
-            "label": "文字起こしを開始しています...",
             "progress": 0.0,
         }
 
         result = []
-        for update in self._transcribe_audio(input_file_path):
+        for update in self._transcribe_audio(input_file_path, should_stop_callback):
+            # 停止チェック
+            if should_stop_callback and should_stop_callback():
+                return
+
             yield update
 
             if "result" in update:
                 result.append(update["result"])
+
+        # 停止チェック
+        if should_stop_callback and should_stop_callback():
+            return
 
         output_file_path = (
             output_folder_path / f"{input_file_path.stem}_transcription.txt"
@@ -196,7 +210,6 @@ class WhisperTranscriber:
             "message": f"出力ファイル: {output_file_path}",
             "level": "INFO",
             "progress": 1.0,
-            "label": "ファイルを保存中...",
         }
 
         self._save_transcription(result, output_file_path)
@@ -205,7 +218,6 @@ class WhisperTranscriber:
             "message": "文字起こしが完了しました",
             "level": "INFO",
             "progress": 1.0,
-            "label": "文字起こしを完了しました。",
         }
 
 
@@ -213,13 +225,13 @@ def transcription(
     settings: Dict[str, Any],
     input_file: str,
     output_folder: str,
-    logger,
-    progress_bar,
-    disabled_start_button,
+    message_queue: queue.Queue,
+    should_stop_callback,
 ) -> None:
-    """文字起こしを実行する関数"""
+    """文字起こしを実行する関数（キューベース）"""
     try:
-        disabled_start_button(True)
+        # 文字起こし開始の通知
+        message_queue.put({"type": "transcription_started"})
 
         required_keys = ["model", "compute_type", "device"]
         for key in required_keys:
@@ -233,20 +245,80 @@ def transcription(
             language=settings.get("language", "auto"),
         )
 
-        logger.info("文字起こしを開始します。")
-        logger.debug(f"設定: {settings}")
-        logger.debug(f"入力ファイル: {input_file}")
-        logger.debug(f"出力フォルダ: {output_folder}")
+        # 初期ログメッセージを送信
+        message_queue.put(
+            {"type": "log", "text": "文字起こしを開始します。", "level": "INFO"}
+        )
 
-        for update in transcriber.transcribe(input_file, output_folder):
-            logger.add_log(update["message"], update["level"])
-            progress_bar.update_value(update["progress"], update["label"])
+        message_queue.put(
+            {"type": "log", "text": f"設定: {settings}", "level": "DEBUG"}
+        )
+
+        message_queue.put(
+            {"type": "log", "text": f"入力ファイル: {input_file}", "level": "DEBUG"}
+        )
+
+        message_queue.put(
+            {"type": "log", "text": f"出力フォルダ: {output_folder}", "level": "DEBUG"}
+        )
+
+        transcription_completed = False
+        for update in transcriber.transcribe(
+            input_file, output_folder, should_stop_callback
+        ):
+            # 停止チェック
+            if should_stop_callback():
+                message_queue.put(
+                    {
+                        "type": "log",
+                        "text": "文字起こしが停止されました",
+                        "level": "WARNING",
+                    }
+                )
+                message_queue.put({"type": "progress", "value": 0})
+                message_queue.put({"type": "transcription_stopped"})
+                return
+
+            # ログメッセージを送信
+            message_queue.put(
+                {"type": "log", "text": update["message"], "level": update["level"]}
+            )
+
+            # プログレス更新を送信
+            message_queue.put(
+                {
+                    "type": "progress",
+                    "value": update["progress"],
+                }
+            )
+
+            # 文字起こしが完了したかチェック
+            if update.get(
+                "progress"
+            ) == 1.0 and "文字起こしが完了しました" in update.get("message", ""):
+                transcription_completed = True
+
+        if not transcription_completed:
+            message_queue.put(
+                {
+                    "type": "log",
+                    "text": "文字起こしが停止されました",
+                    "level": "WARNING",
+                }
+            )
+            message_queue.put({"type": "progress", "value": 0})
+            message_queue.put({"type": "transcription_stopped"})
+            return
+
+        message_queue.put({"type": "transcription_finished"})
 
     except TranscriptionError as e:
-        logger.error(f"文字起こしエラー: {e}")
-        progress_bar.update_value(0, "エラーが発生しました")
+        message_queue.put({"type": "error", "text": f"文字起こしエラー: {e}"})
+        message_queue.put({"type": "progress", "value": 0})
+        return
     except Exception as e:
-        logger.error(f"予期しないエラーが発生しました: {e}")
-        progress_bar.update_value(0, "エラーが発生しました")
-    finally:
-        disabled_start_button(False)
+        message_queue.put(
+            {"type": "error", "text": f"予期しないエラーが発生しました: {e}"}
+        )
+        message_queue.put({"type": "progress", "value": 0})
+        return
