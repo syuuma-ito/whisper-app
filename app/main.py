@@ -362,6 +362,13 @@ class WhisperApp:
 
             self.target_file = file_path
             self.log_view.add_log(f"選択されたファイル: {file_path}", "DEBUG")
+
+            # フォルダが選択されていない場合、ファイルのディレクトリを自動設定
+            if not self.output_folder:
+                file_directory = str(Path(file_path).parent)
+                self.output_folder = file_directory
+                self.output_folder_picker.set_selected_folder(file_directory)
+
             self._update_start_button_state()
 
         except Exception as e:
