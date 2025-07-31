@@ -9,6 +9,7 @@ from components.filePicker import FilePicker
 from components.logView import LogView
 from components.progressBar import ProgressBar
 from components.settings import Settings
+from config.transcription_config import TranscriptionConfig
 from flet import margin
 from utils.torch import can_use_gpu
 from whisper import transcription
@@ -29,7 +30,7 @@ class WhisperApp:
         self.page = page
         self.target_file: Optional[str] = None
         self.output_folder: Optional[str] = None
-        self.transcription_settings = self._get_default_settings()
+        self.transcription_config = TranscriptionConfig.get_default_settings()
         self.current_status = AppStatus.WAITING
 
         # キューとスレッド管理
@@ -60,15 +61,6 @@ class WhisperApp:
 
         self.page.on_window_event = self._on_window_event
 
-    def _get_default_settings(self) -> Dict[str, Any]:
-        """デフォルトの文字起こし設定を取得する"""
-        return {
-            "model": "large-v3-turbo",
-            "compute_type": "float16" if can_use_gpu() else "float32",
-            "device": "GPU" if can_use_gpu() else "CPU",
-            "language": "auto",
-        }
-
     def _setup_components(self) -> None:
         """コンポーネントの初期化と設定を行う"""
         self.log_view = LogView()
@@ -94,7 +86,7 @@ class WhisperApp:
         self._setup_file_pickers()
 
         self.transcription_settings_component = Settings(
-            settings=self.transcription_settings,
+            settings=self.transcription_config.to_dict(),
             on_change=self._on_settings_change,
         )
 
@@ -339,11 +331,7 @@ class WhisperApp:
         else:
             basic_conditions = bool(self.target_file and self.output_folder)
 
-            language_valid = True
-            if "language" in self.transcription_settings:
-                language = self.transcription_settings["language"]
-                if language == "":
-                    language_valid = False
+            language_valid = self.transcription_config.is_valid_language()
 
             is_enabled = basic_conditions and language_valid
             self.start_button.disabled = not is_enabled
@@ -390,8 +378,8 @@ class WhisperApp:
 
     def _on_settings_change(self, settings: Dict[str, Any]) -> None:
         """設定変更時のハンドラー"""
-        self.transcription_settings = settings
-        self.log_view.add_log(f"設定が変更されました: {settings}", "DEBUG")
+        self.transcription_config = TranscriptionConfig.from_dict(settings)
+
         self._update_start_button_state()
 
     def _run_transcription(self) -> None:
@@ -416,7 +404,7 @@ class WhisperApp:
 
         self.transcription_thread = threading.Thread(
             target=lambda: transcription(
-                self.transcription_settings,
+                self.transcription_config.to_dict(),
                 target_file,
                 output_folder,
                 self.message_queue,

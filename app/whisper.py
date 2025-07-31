@@ -149,19 +149,6 @@ class WhisperTranscriber:
     ) -> Generator[Dict[str, Any], None, None]:
         """文字起こしを実行する"""
         yield {
-            "message": "文字起こしを開始します。",
-            "level": "INFO",
-            "progress": 0.0,
-        }
-
-        language_info = f"言語: {self.language if self.language else '自動検出'}"
-        yield {
-            "message": f"モデル: {self.model_name}, 精度: {self.compute_type}, デバイス: {self.device}, {language_info}",
-            "level": "DEBUG",
-            "progress": 0.0,
-        }
-
-        yield {
             "message": "モデルの読み込み中...(初回は時間がかかる場合があります)",
             "level": "INFO",
             "progress": 0,
@@ -240,9 +227,11 @@ def transcription(
             {"type": "log", "text": "文字起こしを開始します。", "level": "INFO"}
         )
 
-        message_queue.put(
-            {"type": "log", "text": f"設定: {settings}", "level": "DEBUG"}
-        )
+        message_queue.put({"type": "log", "text": f"設定:", "level": "DEBUG"})
+        for key, value in settings.items():
+            message_queue.put(
+                {"type": "log", "text": f"- {key}: {value}", "level": "DEBUG"}
+            )
 
         message_queue.put(
             {"type": "log", "text": f"入力ファイル: {input_file}", "level": "DEBUG"}
