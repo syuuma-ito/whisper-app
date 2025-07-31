@@ -115,7 +115,6 @@ class WhisperTranscriber:
 
         result = []
         for segment in segments:
-            # 停止チェック
             if should_stop_callback and should_stop_callback():
                 return result
 
@@ -171,13 +170,11 @@ class WhisperTranscriber:
         input_file_path = self._validate_file_path(input_file)
         output_folder_path = self._validate_output_folder(output_folder)
 
-        # 停止チェック
         if should_stop_callback and should_stop_callback():
             return
 
         self._load_model()
 
-        # 停止チェック
         if should_stop_callback and should_stop_callback():
             return
 
@@ -189,7 +186,6 @@ class WhisperTranscriber:
 
         result = []
         for update in self._transcribe_audio(input_file_path, should_stop_callback):
-            # 停止チェック
             if should_stop_callback and should_stop_callback():
                 return
 
@@ -197,10 +193,6 @@ class WhisperTranscriber:
 
             if "result" in update:
                 result.append(update["result"])
-
-        # 停止チェック
-        if should_stop_callback and should_stop_callback():
-            return
 
         output_file_path = (
             output_folder_path / f"{input_file_path.stem}_transcription.txt"
@@ -228,9 +220,8 @@ def transcription(
     message_queue: queue.Queue,
     should_stop_callback,
 ) -> None:
-    """文字起こしを実行する関数（キューベース）"""
+    """文字起こしを実行する関数"""
     try:
-        # 文字起こし開始の通知
         message_queue.put({"type": "transcription_started"})
 
         required_keys = ["model", "compute_type", "device"]
@@ -245,7 +236,6 @@ def transcription(
             language=settings.get("language", "auto"),
         )
 
-        # 初期ログメッセージを送信
         message_queue.put(
             {"type": "log", "text": "文字起こしを開始します。", "level": "INFO"}
         )
@@ -266,7 +256,6 @@ def transcription(
         for update in transcriber.transcribe(
             input_file, output_folder, should_stop_callback
         ):
-            # 停止チェック
             if should_stop_callback():
                 message_queue.put(
                     {
@@ -279,12 +268,10 @@ def transcription(
                 message_queue.put({"type": "transcription_stopped"})
                 return
 
-            # ログメッセージを送信
             message_queue.put(
                 {"type": "log", "text": update["message"], "level": update["level"]}
             )
 
-            # プログレス更新を送信
             message_queue.put(
                 {
                     "type": "progress",
@@ -292,7 +279,6 @@ def transcription(
                 }
             )
 
-            # 文字起こしが完了したかチェック
             if update.get(
                 "progress"
             ) == 1.0 and "文字起こしが完了しました" in update.get("message", ""):
